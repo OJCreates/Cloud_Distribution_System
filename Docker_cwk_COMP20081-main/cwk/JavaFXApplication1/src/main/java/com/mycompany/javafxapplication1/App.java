@@ -9,11 +9,14 @@ import javafx.stage.Stage;
 import java.io.IOException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.security.spec.InvalidKeySpecException;
 
 /**
  * JavaFX App
  */
 public class App extends Application {
+    
+    
 
     @Override
     public void start(Stage stage) throws IOException {
@@ -45,6 +48,8 @@ public class App extends Application {
             e.printStackTrace();
         }
     }
+    
+    
 
     public static void main(String[] args) {
         launch();

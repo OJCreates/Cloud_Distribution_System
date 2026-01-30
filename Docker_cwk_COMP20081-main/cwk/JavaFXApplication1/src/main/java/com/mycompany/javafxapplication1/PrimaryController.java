@@ -66,15 +66,15 @@ public class PrimaryController {
         Stage primaryStage = (Stage) registerBtn.getScene().getWindow();
         try {
             DB myObj = new DB();
-            String[] credentials = {userTextField.getText(), passPasswordField.getText()};
-            if(myObj.validateUser(userTextField.getText(), passPasswordField.getText())){
+            User loggedIn = myObj.authenticate(userTextField.getText(), passPasswordField.getText());
+            if(loggedIn != null){
                 FXMLLoader loader = new FXMLLoader();
                 loader.setLocation(getClass().getResource("secondary.fxml"));
                 Parent root = loader.load();
                 Scene scene = new Scene(root, 640, 480);
                 secondaryStage.setScene(scene);
                 SecondaryController controller = loader.getController();
-                controller.initialise(credentials);
+                controller.initialise(loggedIn);
                 secondaryStage.setTitle("Show Users");
                 String msg="some data sent from Primary Controller";
                 secondaryStage.setUserData(msg);

@@ -13,11 +13,21 @@ import javafx.beans.property.SimpleStringProperty;
 public class User {
     private SimpleStringProperty user;
     private SimpleStringProperty pass;
+    private SimpleStringProperty role;
 
-    User(String user, String pass) {
+    User(String user, String pass, String role) {
         this.user = new SimpleStringProperty(user);
         this.pass = new SimpleStringProperty(pass);
+        this.role= new SimpleStringProperty(role);
+        
     }
+    
+    public User(String user, String role) {
+    this.user = new SimpleStringProperty(user);
+    this.pass = new SimpleStringProperty(""); // or null-safe
+    this.role = new SimpleStringProperty(role);
+}
+
 
     public String getUser() {
         return user.get();
@@ -33,5 +43,16 @@ public class User {
 
     public void setPass(String pass) {
         this.pass.set(pass);
+    }
+    
+    public String getRole() {
+        return role.get();
+    }
+    public void setRole(String role) {
+        this.role.set(role);
+    }
+    
+    public boolean isAdmin() {
+        return "ADMIN".equalsIgnoreCase(role.get());
     }
 }

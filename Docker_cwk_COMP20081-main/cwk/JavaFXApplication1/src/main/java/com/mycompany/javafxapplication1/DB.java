@@ -12,6 +12,7 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.PreparedStatement;
 
 import java.util.Base64;
 import java.nio.charset.StandardCharsets;
@@ -79,7 +80,15 @@ public class DB {
             connection = DriverManager.getConnection(fileName);
             var statement = connection.createStatement();
             statement.setQueryTimeout(timeout);
-            statement.executeUpdate("create table if not exists " + tableName + "(id integer primary key autoincrement, name string, password string)");
+            statement.executeUpdate(
+                "CREATE TABLE IF NOT EXISTS " + tableName + " ("
+              + "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+              + "name TEXT NOT NULL UNIQUE, "
+              + "password TEXT NOT NULL, "
+              + "role TEXT NOT NULL DEFAULT 'STANDARD'"
+              + ")"
+);
+
 
         } catch (SQLException ex) {
             Logger.getLogger(DB.class.getName()).log(Level.SEVERE, null, ex);
@@ -133,7 +142,7 @@ public class DB {
             var statement = connection.createStatement();
             statement.setQueryTimeout(timeout);
 //            System.out.println("Adding User: " + user + ", Password: " + password);
-            statement.executeUpdate("insert into " + dataBaseTableName + " (name, password) values('" + user + "','" + generateSecurePassword(password) + "')");
+            statement.executeUpdate("insert into " + dataBaseTableName + " (name, password,role) values('" + user + "','" + generateSecurePassword(password) + "','STANDARD')");
         } catch (SQLException ex) {
             Logger.getLogger(DB.class.getName()).log(Level.SEVERE, null, ex);
         } finally {
@@ -167,10 +176,10 @@ public class DB {
             connection = DriverManager.getConnection(fileName);
             var statement = connection.createStatement();
             statement.setQueryTimeout(timeout);
-            ResultSet rs = statement.executeQuery("select * from " + this.dataBaseTableName);
+            ResultSet rs = statement.executeQuery("select name, role from " + this.dataBaseTableName);
             while (rs.next()) {
                 // read the result set
-                result.add(new User(rs.getString("name"),rs.getString("password")));
+                result.add(new User(rs.getString("name"), rs.getString("role")));
             }
             
         } catch (SQLException ex) {
@@ -226,6 +235,29 @@ public class DB {
         return flag;
     }
 
+    
+    public User authenticate(String user, String pass) throws InvalidKeySpecException, ClassNotFoundException {
+        try {
+            Class.forName("org.sqlite.JDBC");
+            connection = DriverManager.getConnection(fileName);
+            var statement = connection.createStatement();
+            statement.setQueryTimeout(timeout);
+            
+            ResultSet rs = statement.executeQuery("select name, password, role from " + this.dataBaseTableName);
+            String inPass = generateSecurePassword(pass);
+            
+            while (rs.next()) {
+                if (user.equals(rs.getString("name")) && rs.getString("password").equals(inPass)) {
+                    return new User(rs.getString("name"), rs.getString("password"), rs.getString("role"));
+                }
+            }
+        }  catch (SQLException ex) {
+            Logger.getLogger(DB.class.getName()).log(Level.SEVERE, null, ex);
+        } finally {
+            try {if (connection != null) connection.close(); } catch (SQLException e) {System.err.println(e.getMessage()); }
+        }
+            return null;
+    }
     private String getSaltvalue(int length) {
         StringBuilder finalval = new StringBuilder(length);
 
@@ -277,6 +309,87 @@ public class DB {
 
     }
 
+    
+    public boolean createdUser(String username, String password, String role)
+            throws InvalidKeySpecException, ClassNotFoundException {
+        if (role == null || role.isBlank()) role = "STANDARD" ;
+        role = role.toUpperCase();
+        
+        if (!role.equals("STANDARD") && !role.equals("ADMIN")) {
+            throw new IllegalArgumentException("Role must be STANDARD OR ADMIN!");
+            
+        }
+        
+        Class.forName("org.sqlite.JDBC");
+        try(Connection conn = DriverManager.getConnection(fileName)){
+            String sql = "INSERT INTO " + dataBaseTableName + "(name, password, role) VALUES (?, ?,?)";
+            try(PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, username);
+                ps.setString(2, generateSecurePassword(password));
+                ps.setString(3, role);
+                ps.executeUpdate();
+                return true;
+            }
+        } catch(SQLException ex) {
+            Logger.getLogger(DB.class.getName()).log(Level.SEVERE, null, ex);
+            return false;
+            
+        }
+    }
+    public boolean deleteUser(String user) throws ClassNotFoundException {
+        Class.forName("org.sqlite.JDBC");
+        try (Connection conn = DriverManager.getConnection(fileName)) {
+            String sql = "DELETE FROM " + dataBaseTableName + " WHERE name = ?";
+            
+            try(PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, user);
+                return ps.executeUpdate() > 0;
+            }
+  
+        } catch (SQLException ex) {
+            Logger.getLogger(DB.class.getName()).log(Level.SEVERE, null,ex);
+            return false;
+        }
+    }
+    public boolean updatePassword(String username, String newPassword) 
+        throws InvalidKeySpecException, ClassNotFoundException {
+        
+        Class.forName("org.sqlite.JDBC");
+        try (Connection conn = DriverManager.getConnection(fileName)) {
+            String sql = "UPDATE " + dataBaseTableName + " SET password = ? WHERE name = ?";
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, generateSecurePassword(newPassword));
+                ps.setString(2, username);
+                return ps.executeUpdate() > 0;
+            }
+        }catch (SQLException ex) {
+               Logger.getLogger(DB.class.getName()).log(Level.SEVERE, null, ex);
+                return false;
+        }
+            
+        
+    }
+    public boolean updateRole(String username, String role) throws ClassNotFoundException {
+    if (role == null || role.isBlank()) return false;
+    role = role.toUpperCase();
+    if (!role.equals("STANDARD") && !role.equals("ADMIN")) return false;
+
+    Class.forName("org.sqlite.JDBC");
+    try (Connection conn = DriverManager.getConnection(fileName)) {
+        String sql = "UPDATE " + dataBaseTableName + " SET role = ? WHERE name = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, role);
+            ps.setString(2, username);
+            return ps.executeUpdate() > 0;
+        }
+    } catch (SQLException ex) {
+        Logger.getLogger(DB.class.getName()).log(Level.SEVERE, null, ex);
+        return false;
+    }
+}
+
+}
+    
 //    public static void main(String[] args) throws InvalidKeySpecException {
 //        DB myObj = new DB();
 //        myObj.log("-------- Simple Tutorial on how to make JDBC connection to SQLite DB ------------");
@@ -305,4 +418,3 @@ public class DB {
 //            }
 //        }
 //    }
-}

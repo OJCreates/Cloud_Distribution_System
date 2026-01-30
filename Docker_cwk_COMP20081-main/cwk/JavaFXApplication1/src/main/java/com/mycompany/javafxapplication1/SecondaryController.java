@@ -4,6 +4,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.logging.Level;
+import java.util.Optional;
 import java.util.logging.Logger;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
@@ -14,21 +15,25 @@ import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
+import javafx.scene.control.Alert;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.stage.Stage;
 
 
 
 public class SecondaryController {
+    private User currentUser;
+    
     
     @FXML
     private TextField userTextField;
     
     @FXML
-    private TableView dataTableView;
+    private TableView<User> dataTableView;
 
     @FXML
     private Button secondaryButton;
@@ -36,31 +41,82 @@ public class SecondaryController {
     @FXML
     private Button refreshBtn;
     
-    @FXML
+    @FXML 
     private Button delBtn;
     
     @FXML
     private TextField customTextField;
     
-    @FXML
-    private void RefreshBtnHandler(ActionEvent event){
-        Stage primaryStage = (Stage) customTextField.getScene().getWindow();
-        customTextField.setText((String)primaryStage.getUserData());
+    
+
+
+    private void refreshTable() throws ClassNotFoundException {
+        DB db = new DB();
+        ObservableList<User> data = db.getDataFromTable();
+        dataTableView.setItems(data);
+        dataTableView.refresh();
     }
     
     @FXML
-    private void delAction(){
-
-        try {
-        System.out.println("This user has been removed!");
-        
-        } catch (Exception e) {
+    private void RefreshBtnHandler(ActionEvent event){
+        try{
+            refreshTable();
+        } catch (ClassNotFoundException e) {
             e.printStackTrace();
-        
         }
-            
-    }
         
+        Stage primaryStage = (Stage) customTextField.getScene().getWindow();
+        customTextField.setText((String)primaryStage.getUserData());
+        Object ud = primaryStage.getUserData();
+        if (ud != null) customTextField.setText(ud.toString());
+    }
+    
+
+    
+    @FXML 
+    private void delAction(){
+        if(currentUser == null || !"ADMIN".equalsIgnoreCase(currentUser.getRole())) {
+            System.out.println("Only ADMIN can delete users");
+            return;
+        }
+        
+        User selected = dataTableView.getSelectionModel().getSelectedItem();
+        if(selected == null) {
+            System.out.println ("No user selected.");
+            return;
+        }
+        if (selected.getUser().equalsIgnoreCase(currentUser.getUser())) {
+            System.out.println("You cant deltere your own account while logged in");
+            return;
+        }
+        
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Confirm Delete");
+        alert.setHeaderText("Delete user: " + selected.getUser());
+        alert.setContentText("Are you sure? This cannot be undone.");
+        
+        Optional<ButtonType> result = alert.showAndWait();
+        if (result.isEmpty() || result.get() != ButtonType.OK) {
+            return;
+        }
+        
+        try {
+            DB db = new DB();
+            boolean deleted = db.deleteUser(selected.getUser());
+            
+            if(deleted) {
+                System.out.println("Deleted: " + selected.getUser());
+                refreshTable();
+            } else {
+                System.out.println("Delete failed (user may not exist).");
+            }
+ 
+        } catch(Exception e) {
+            e.printStackTrace();
+        }
+    }
+    
+    
     @FXML
     private void switchToPrimary(){
         Stage secondaryStage = new Stage();
@@ -82,21 +138,33 @@ public class SecondaryController {
         }
     }
 
-    public void initialise(String[] credentials) {
-        userTextField.setText(credentials[0]);
-        DB myObj = new DB();
-        ObservableList<User> data;
-        try {
-            data = myObj.getDataFromTable();
-            TableColumn user = new TableColumn("User");
-        user.setCellValueFactory(
+    public void initialise(User loggedIn) {
+        this.currentUser = loggedIn;
+        userTextField.setText(loggedIn.getUser() + " (" + loggedIn.getRole() + ")");
+        
+      
+            
+        TableColumn <User, String> userCol = new TableColumn<>("User");
+        userCol.setCellValueFactory(
         new PropertyValueFactory<>("user"));
+        
+        TableColumn<User, String> roleCol = new TableColumn<>("Role");
+        roleCol.setCellValueFactory(new PropertyValueFactory<>("role"));
 
-        TableColumn pass = new TableColumn("Pass");
-        pass.setCellValueFactory(
+        TableColumn<User, String> passCol = new TableColumn("Pass");
+        passCol.setCellValueFactory(
             new PropertyValueFactory<>("pass"));
-        dataTableView.setItems(data);
-        dataTableView.getColumns().addAll(user, pass);
+        
+        dataTableView.getColumns().clear();
+        
+        dataTableView.getColumns().addAll(userCol, roleCol, passCol);
+        
+        boolean isAdmin = "ADMIN".equalsIgnoreCase(loggedIn.getRole());
+        delBtn.setDisable(!isAdmin);
+        //adminButton.setDisable(!isAdmin);
+        
+        try {
+            refreshTable();
         } catch (ClassNotFoundException ex) {
             Logger.getLogger(SecondaryController.class.getName()).log(Level.SEVERE, null, ex);
         }

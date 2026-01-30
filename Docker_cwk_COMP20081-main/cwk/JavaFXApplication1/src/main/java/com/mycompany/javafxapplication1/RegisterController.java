@@ -91,14 +91,14 @@ public class RegisterController {
             if (passPasswordField.getText().equals(rePassPasswordField.getText())) {
                 myObj.addDataToDB(userTextField.getText(), passPasswordField.getText());
                 dialogue("Adding information to the database", "Successful!");
-                String[] credentials = {userTextField.getText(), passPasswordField.getText()};
+                User registeredUser = new User(userTextField.getText(), "", "STANDARD");
                 loader.setLocation(getClass().getResource("secondary.fxml"));
                 Parent root = loader.load();
                 Scene scene = new Scene(root, 640, 480);
                 secondaryStage.setScene(scene);
                 SecondaryController controller = loader.getController();
                 secondaryStage.setTitle("Show users");
-                controller.initialise(credentials);
+                controller.initialise(registeredUser);
                 String msg = "some data sent from Register Controller";
                 secondaryStage.setUserData(msg);
             } else {
