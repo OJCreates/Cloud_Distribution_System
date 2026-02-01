@@ -32,6 +32,7 @@ public class App extends Application {
         myObj.log("\n---------- Create table ----------");
         try {
             myObj.createTable(myObj.getTableName());
+            myObj.createSessionTable();
         } catch (ClassNotFoundException ex) {
             Logger.getLogger(App.class.getName()).log(Level.SEVERE, null, ex);
         }

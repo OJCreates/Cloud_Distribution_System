@@ -16,6 +16,7 @@ import javafx.stage.Stage;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
 import javafx.scene.paint.Color;
+import com.mycompany.javafxapplication1.User;
 
 public class PrimaryController {
 
@@ -66,8 +67,13 @@ public class PrimaryController {
         Stage primaryStage = (Stage) registerBtn.getScene().getWindow();
         try {
             DB myObj = new DB();
+            
             User loggedIn = myObj.authenticate(userTextField.getText(), passPasswordField.getText());
-            if(loggedIn != null){
+            if(loggedIn != null) {
+                
+            
+            myObj.createSession(userTextField.getText());
+    
                 FXMLLoader loader = new FXMLLoader();
                 loader.setLocation(getClass().getResource("secondary.fxml"));
                 Parent root = loader.load();

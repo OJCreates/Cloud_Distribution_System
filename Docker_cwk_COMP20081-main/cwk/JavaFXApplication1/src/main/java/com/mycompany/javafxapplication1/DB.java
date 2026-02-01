@@ -388,7 +388,52 @@ public class DB {
     }
 }
 
+    public void createSessionTable () throws ClassNotFoundException {
+        try {
+            Class.forName("org.sqlite.JDBC");
+            connection = DriverManager.getConnection(fileName);
+            var statement = connection.createStatement();
+            statement.setQueryTimeout(timeout);
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS Sessions (" + 
+                                    "id INTEGER PRIMARY KEY AUTOINCREMENT, " + 
+                                    "username STRING, " +
+                                    "login_time DATETIME DEFAULT CURRENT_TIMESTAMP)");
+        } catch (SQLException ex) {
+            Logger.getLogger(DB.class.getName()).log(Level.SEVERE, null, ex);
+        } finally {
+            try {
+                if (connection != null) connection.close();
+            } catch (SQLException e) {
+                System.err.println(e.getMessage());
+            }
+                    
+        }
+    }
+    
+    public void createSession(String username) throws ClassNotFoundException {
+        String sql = "INSERT INTO Sessions (username) VALUES (?)";
+        try {
+            Class.forName("org.sqlite.JDBC");
+            connection = DriverManager.getConnection(fileName);
+            var pstmt = connection.prepareStatement(sql);
+            pstmt.setQueryTimeout(timeout);
+            pstmt.setString(1, username);
+            pstmt.executeUpdate();
+            log("Session created in SQLite for user: " + username);
+        } catch (SQLException ex) {
+            Logger.getLogger(DB.class.getName()).log(Level.SEVERE, null, ex);
+        } finally {
+            try {
+                if (connection != null) connection.close();
+            } catch (SQLException e) {
+                System.err.println(e.getMessage());
+            }
+        }
+    }
+    
 }
+
+
     
 //    public static void main(String[] args) throws InvalidKeySpecException {
 //        DB myObj = new DB();
