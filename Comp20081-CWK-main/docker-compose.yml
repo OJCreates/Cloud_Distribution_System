@@ -1,0 +1,78 @@
+version: '3'
+
+services:
+  ntu-vm-comp20081:
+    container_name: ntu-vm-comp20081
+    image: pedrombmachado/ntu_lubuntu:comp20081
+    ports:
+      - "3390:3389"
+      - "2022:22"
+    hostname: ntu-vm-comp20081
+    volumes:
+      - docker_comp20081:/home/ntu-user/NetBeansProjects
+    networks:
+      - comp20081_network
+
+  comp20081-files-container1:
+    container_name: comp20081-files-container1
+    image: pedrombmachado/simple-ssh-container:base
+    ports:
+      - "4848:22"
+    hostname: comp20081-files-container1
+    networks:
+      - comp20081_network
+
+  comp20081-files-container2:
+    container_name: comp20081-files-container2
+    image: pedrombmachado/simple-ssh-container:base
+    ports:
+      - "4849:22"
+    hostname: comp20081-files-container2
+    networks:
+      - comp20081_network
+
+  comp20081-files-container3:
+    container_name: load-balancer-container3
+    image: pedrombmachado/simple-ssh-container:base
+    ports:
+      - "4850:22"
+    hostname: comp20081-files-container3
+    networks:
+      - comp20081_network
+
+  comp20081-files-container4:
+    container_name: file-partition-container4
+    image: pedrombmachado/simple-ssh-container:base
+    ports:
+      - "4851:22"
+    hostname: comp20081-files-container4
+    networks:
+      - comp20081_network
+
+  comp20081-files-container6:
+    container_name: host-manager-container
+    image: pedrombmachado/simple-ssh-container:base
+    ports: 
+      -  "4853:22"
+    hostname: Host_Manager_Container
+    networks:
+      - comp20081_network
+
+  mysql:
+    image: mysql:8
+    container_name: mysql
+    volumes:
+      - mysql_data:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: cloud
+    networks:
+      - comp20081_network
+
+networks:
+  comp20081_network:
+    driver: bridge
+
+volumes:
+  docker_comp20081:
+  mysql_data:
