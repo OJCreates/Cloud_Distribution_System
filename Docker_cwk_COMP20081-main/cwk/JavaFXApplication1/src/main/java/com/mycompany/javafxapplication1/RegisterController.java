@@ -1,4 +1,4 @@
-/*
+ /*
  * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
  * Click nbfs://nbhost/SystemFileSystem/Templates/javafx/FXMLController.java to edit this template
  */
@@ -82,39 +82,37 @@ public class RegisterController {
     }
 
     @FXML
-    private void registerBtnHandler(ActionEvent event) {
-        Stage secondaryStage = new Stage();
-        Stage primaryStage = (Stage) registerBtn.getScene().getWindow();
-        try {
-            FXMLLoader loader = new FXMLLoader();
-            DB myObj = new DB();
-            if (passPasswordField.getText().equals(rePassPasswordField.getText())) {
-                myObj.addDataToDB(userTextField.getText(), passPasswordField.getText());
-                dialogue("Adding information to the database", "Successful!");
-                User registeredUser = new User(userTextField.getText(), "", "STANDARD");
+private void registerBtnHandler(ActionEvent event) {
+    try {
+        DB myObj = new DB();
+        if (passPasswordField.getText().equals(rePassPasswordField.getText())) {
+            
+            myObj.addDataToDB(userTextField.getText(), passPasswordField.getText());
+            
+            
+            User registeredUser = myObj.authenticate(userTextField.getText(), passPasswordField.getText());
+            
+            if (registeredUser != null) {
+                myObj.createSession(registeredUser.getUser());
+                
+                FXMLLoader loader = new FXMLLoader();
                 loader.setLocation(getClass().getResource("secondary.fxml"));
                 Parent root = loader.load();
-                Scene scene = new Scene(root, 640, 480);
-                secondaryStage.setScene(scene);
-                SecondaryController controller = loader.getController();
-                secondaryStage.setTitle("Show users");
+                
+                SecondaryController controller = (SecondaryController) loader.getController();
                 controller.initialise(registeredUser);
-                String msg = "some data sent from Register Controller";
-                secondaryStage.setUserData(msg);
-            } else {
-                loader.setLocation(getClass().getResource("register.fxml"));
-                Parent root = loader.load();
-                Scene scene = new Scene(root, 640, 480);
-                secondaryStage.setScene(scene);
-                secondaryStage.setTitle("Register a new User");
+                
+                Stage secondaryStage = new Stage();
+                secondaryStage.setScene(new Scene(root, 640, 480));
+                secondaryStage.setTitle("Show users");
+                secondaryStage.show();
+                ((Stage) registerBtn.getScene().getWindow()).close();
             }
-            secondaryStage.show();
-            primaryStage.close();
-
-        } catch (Exception e) {
-            e.printStackTrace();
         }
+    } catch (Exception e) {
+        e.printStackTrace();
     }
+}
 
     @FXML
     private void backLoginBtnHandler(ActionEvent event) {

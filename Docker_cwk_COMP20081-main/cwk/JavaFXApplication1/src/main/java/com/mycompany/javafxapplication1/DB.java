@@ -136,34 +136,34 @@ public class DB {
      * @param password of type String
      */
         public void addDataToDB(String user, String password) throws InvalidKeySpecException, ClassNotFoundException {
+
+    String role = getDataFromTable().isEmpty() ? "ADMIN" : "STANDARD";
+    
+
+    String sql = "INSERT INTO " + dataBaseTableName + " (name, password, role) VALUES (?, ?, ?)";
+    
+    try {
+        Class.forName("org.sqlite.JDBC");
+        connection = DriverManager.getConnection(fileName);
+        PreparedStatement pstmt = connection.prepareStatement(sql);
+        pstmt.setQueryTimeout(timeout);
+        
+        pstmt.setString(1, user);
+        pstmt.setString(2, generateSecurePassword(password));
+        pstmt.setString(3, role); // This uses the logic from step 1
+        
+        pstmt.executeUpdate();
+        log("User " + user + " added to DB with role: " + role);
+    } catch (SQLException ex) {
+        Logger.getLogger(DB.class.getName()).log(Level.SEVERE, null, ex);
+    } finally {
         try {
-            Class.forName("org.sqlite.JDBC");
-            connection = DriverManager.getConnection(fileName);
-            var statement = connection.createStatement();
-            statement.setQueryTimeout(timeout);
-//            System.out.println("Adding User: " + user + ", Password: " + password);
-            statement.executeUpdate("insert into " + dataBaseTableName + " (name, password,role) values('" + user + "','" + generateSecurePassword(password) + "','STANDARD')");
-        } catch (SQLException ex) {
-            Logger.getLogger(DB.class.getName()).log(Level.SEVERE, null, ex);
-        } finally {
-            try {
-                if (connection != null) {
-                    connection.close();
-                }
-            } catch (SQLException ex) {
-                Logger.getLogger(DB.class.getName()).log(Level.SEVERE, null, ex);
-            } finally {
-                try {
-                    if (connection != null) {
-                        connection.close();
-                    }
-                } catch (SQLException e) {
-                    // connection close failed.
-                    System.err.println(e.getMessage());
-                }
-            }
+            if (connection != null) connection.close();
+        } catch (SQLException e) {
+            System.err.println(e.getMessage());
         }
     }
+}
 
     /**
      * @brief get data from the Database method
