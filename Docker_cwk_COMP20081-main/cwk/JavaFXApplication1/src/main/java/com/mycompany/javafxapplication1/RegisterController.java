@@ -81,7 +81,7 @@ public class RegisterController {
         Optional<ButtonType> result = alert.showAndWait();
     }
 
-    @FXML
+   @FXML
 private void registerBtnHandler(ActionEvent event) {
     try {
         DB myObj = new DB();
@@ -100,8 +100,7 @@ private void registerBtnHandler(ActionEvent event) {
                 Parent root = loader.load();
                 
                 SecondaryController controller = (SecondaryController) loader.getController();
-                controller.initialise(registeredUser);
-                
+                controller.initialise(registeredUser);                 
                 Stage secondaryStage = new Stage();
                 secondaryStage.setScene(new Scene(root, 640, 480));
                 secondaryStage.setTitle("Show users");

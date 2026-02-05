@@ -135,11 +135,11 @@ public class DB {
      * @param user name of type String
      * @param password of type String
      */
-        public void addDataToDB(String user, String password) throws InvalidKeySpecException, ClassNotFoundException {
-
+     public void addDataToDB(String user, String password) throws InvalidKeySpecException, ClassNotFoundException {
+    
     String role = getDataFromTable().isEmpty() ? "ADMIN" : "STANDARD";
     
-
+    
     String sql = "INSERT INTO " + dataBaseTableName + " (name, password, role) VALUES (?, ?, ?)";
     
     try {
@@ -150,7 +150,7 @@ public class DB {
         
         pstmt.setString(1, user);
         pstmt.setString(2, generateSecurePassword(password));
-        pstmt.setString(3, role); // This uses the logic from step 1
+        pstmt.setString(3, role); 
         
         pstmt.executeUpdate();
         log("User " + user + " added to DB with role: " + role);
