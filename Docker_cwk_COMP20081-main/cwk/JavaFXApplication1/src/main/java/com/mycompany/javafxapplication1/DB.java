@@ -431,6 +431,44 @@ public class DB {
         }
     }
     
+    
+public void createFileTable() throws ClassNotFoundException {
+    try {
+        Class.forName("org.sqlite.JDBC");
+        connection = DriverManager.getConnection(fileName);
+        var statement = connection.createStatement();
+        statement.setQueryTimeout(timeout);
+        
+        statement.executeUpdate("CREATE TABLE IF NOT EXISTS Files (" +
+                                "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                                "filename TEXT NOT NULL, " +
+                                "owner TEXT NOT NULL, " +
+                                "path TEXT NOT NULL, " +
+                                "FOREIGN KEY(owner) REFERENCES Users(name))");
+    } catch (SQLException ex) {
+        Logger.getLogger(DB.class.getName()).log(Level.SEVERE, null, ex);
+    } finally {
+        try { if (connection != null) connection.close(); } catch (SQLException e) {}
+    }
+}
+
+    public void addFileToDB(String filename, String owner, String path) throws ClassNotFoundException {
+    String sql = "INSERT INTO Files (filename, owner, path) VALUES (?, ?, ?)";
+    try {
+        Class.forName("org.sqlite.JDBC");
+        connection = DriverManager.getConnection(fileName);
+        var pstmt = connection.prepareStatement(sql);
+        pstmt.setString(1, filename);
+        pstmt.setString(2, owner);
+        pstmt.setString(3, path);
+        pstmt.executeUpdate();
+    } catch (SQLException ex) {
+        Logger.getLogger(DB.class.getName()).log(Level.SEVERE, null, ex);
+    } finally {
+        try { if (connection != null) connection.close(); } catch (SQLException e) {}
+    }
+}
+    
 }
 
 

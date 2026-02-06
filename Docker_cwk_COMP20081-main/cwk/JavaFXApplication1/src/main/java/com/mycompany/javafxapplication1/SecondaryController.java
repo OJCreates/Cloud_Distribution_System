@@ -22,6 +22,10 @@ import javafx.scene.control.TextField;
 import javafx.scene.control.Alert;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.stage.Stage;
+import javafx.scene.control.TextInputDialog;
+import java.io.File;
+import java.io.FileWriter;
+import java.util.Optional;
 
 
 
@@ -47,8 +51,44 @@ public class SecondaryController {
     @FXML
     private TextField customTextField;
     
+    @FXML
+    private Button createFileBtn;
     
+    
+    @FXML
+private void handleCreateFile() {
 
+    TextInputDialog dialog = new TextInputDialog("myFile.txt");
+    dialog.setTitle("Create New File");
+    dialog.setHeaderText("Create a New File");
+    dialog.setContentText("Please enter the filename:");
+
+    Optional<String> result = dialog.showAndWait();
+    
+    result.ifPresent(fileName -> {
+        try {
+            
+            File file = new File(fileName);
+            if (file.createNewFile()) {
+               
+                FileWriter writer = new FileWriter(file);
+                writer.write("Default content for " + fileName);
+                writer.close();
+
+
+                DB db = new DB();
+               
+                db.addFileToDB(fileName, currentUser.getUser(), file.getAbsolutePath());
+                
+                System.out.println("File created: " + file.getAbsolutePath());
+            } else {
+                System.out.println("File already exists.");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    });
+}
 
     private void refreshTable() throws ClassNotFoundException {
         DB db = new DB();
@@ -169,4 +209,6 @@ public class SecondaryController {
             Logger.getLogger(SecondaryController.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
+    
+    
 }
