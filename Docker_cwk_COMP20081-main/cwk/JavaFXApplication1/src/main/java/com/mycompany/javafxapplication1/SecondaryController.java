@@ -26,6 +26,7 @@ import javafx.scene.control.TextInputDialog;
 import java.io.File;
 import java.io.FileWriter;
 import java.util.Optional;
+import java.io.IOException;
 
 
 
@@ -38,6 +39,9 @@ public class SecondaryController {
     
     @FXML
     private TableView<User> dataTableView;
+    
+    @FXML
+    private TableView<FileMetadata> fileTableView;
 
     @FXML
     private Button secondaryButton;
@@ -54,6 +58,67 @@ public class SecondaryController {
     @FXML
     private Button createFileBtn;
     
+    @FXML
+    private Button updateFileBtn;
+    
+    @FXML
+    private Button deleteFileBtn;
+    
+    
+    @FXML
+private void handleDeleteFile() {
+    FileMetadata selected = fileTableView.getSelectionModel().getSelectedItem();
+    
+    if (selected == null) {
+        Alert alert = new Alert(Alert.AlertType.WARNING);
+        alert.setContentText("Please select a file from the table first.");
+        alert.show();
+        return;
+    }
+
+    
+    File file = new File(selected.getPath()); 
+    if (file.exists() && file.delete()) {
+        try {
+           
+            DB db = new DB();
+            db.deleteFileFromDB(selected.getFilename());
+            
+            
+            refreshFileTable();
+            System.out.println("Deleted file: " + selected.getFilename());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    } else {
+        System.out.println("Failed to delete physical file.");
+    }
+}
+
+    @FXML
+private void handleUpdateFile() {
+    FileMetadata selected = fileTableView.getSelectionModel().getSelectedItem();
+    if (selected == null) return;
+
+    TextInputDialog dialog = new TextInputDialog();
+    dialog.setTitle("Update File");
+    dialog.setHeaderText("Updating content for: " + selected.getFilename());
+    dialog.setContentText("Enter new file content:");
+
+    Optional<String> result = dialog.showAndWait();
+    result.ifPresent(newContent -> {
+        
+        try (FileWriter writer = new FileWriter(selected.getPath())) {
+            writer.write(newContent);
+            
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setContentText("File content updated successfully.");
+            alert.show();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    });
+}
     
     @FXML
 private void handleCreateFile() {
@@ -79,6 +144,8 @@ private void handleCreateFile() {
                 DB db = new DB();
                
                 db.addFileToDB(fileName, currentUser.getUser(), file.getAbsolutePath());
+                refreshFileTable();
+                
                 
                 System.out.println("File created: " + file.getAbsolutePath());
             } else {
@@ -98,17 +165,23 @@ private void handleCreateFile() {
     }
     
     @FXML
-    private void RefreshBtnHandler(ActionEvent event){
-        try{
+    private void RefreshBtnHandler(ActionEvent event) {
+        try {
             refreshTable();
+            refreshFileTable(); 
+        
+            Stage primaryStage = (Stage) customTextField.getScene().getWindow();
+            Object ud = primaryStage.getUserData();
+            if (ud != null) {
+                customTextField.setText(ud.toString());
+            }
+        
+        
+            System.out.println("Refresh button clicked: Tables updated from SQLite.");
+        
         } catch (ClassNotFoundException e) {
             e.printStackTrace();
         }
-        
-        Stage primaryStage = (Stage) customTextField.getScene().getWindow();
-        customTextField.setText((String)primaryStage.getUserData());
-        Object ud = primaryStage.getUserData();
-        if (ud != null) customTextField.setText(ud.toString());
     }
     
 
@@ -201,12 +274,37 @@ private void handleCreateFile() {
         
         boolean isAdmin = "ADMIN".equalsIgnoreCase(loggedIn.getRole());
         delBtn.setDisable(!isAdmin);
-        //adminButton.setDisable(!isAdmin);
+        
+        
         
         try {
             refreshTable();
         } catch (ClassNotFoundException ex) {
             Logger.getLogger(SecondaryController.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        
+        TableColumn<FileMetadata, String> fileNameCol = new TableColumn<>("File Name");
+    fileNameCol.setCellValueFactory(new PropertyValueFactory<>("filename"));
+
+    TableColumn<FileMetadata, String> filePathCol = new TableColumn<>("Full Path");
+    filePathCol.setCellValueFactory(new PropertyValueFactory<>("path"));
+
+    fileTableView.getColumns().clear();
+    fileTableView.getColumns().addAll(fileNameCol, filePathCol);
+    
+    refreshFileTable();
+    
+    }
+    
+    private void refreshFileTable() {
+        try {
+            DB db = new DB();
+        
+            ObservableList<FileMetadata> files = db.getFilesForUser(currentUser.getUser());
+            fileTableView.setItems(files);
+            fileTableView.refresh();
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
         }
     }
     

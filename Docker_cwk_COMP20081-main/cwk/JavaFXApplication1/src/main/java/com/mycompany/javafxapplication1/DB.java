@@ -197,12 +197,29 @@ public class DB {
         return result;
     }
 
-    /**
-     * @brief decode password method
-     * @param user name as type String
-     * @param pass plain password of type String
-     * @return true if the credentials are valid, otherwise false
-     */
+
+public ObservableList<FileMetadata> getFilesForUser(String owner) throws ClassNotFoundException {
+    ObservableList<FileMetadata> files = FXCollections.observableArrayList();
+    String sql = "SELECT filename, path FROM Files WHERE owner = ?";
+    
+    try {
+        Class.forName("org.sqlite.JDBC");
+        connection = DriverManager.getConnection(fileName);
+        var pstmt = connection.prepareStatement(sql);
+        pstmt.setString(1, owner);
+        ResultSet rs = pstmt.executeQuery();
+        
+        while (rs.next()) {
+            files.add(new FileMetadata(rs.getString("filename"), rs.getString("path")));
+        }
+    } catch (SQLException ex) {
+        Logger.getLogger(DB.class.getName()).log(Level.SEVERE, null, ex);
+    } finally {
+        try { if (connection != null) connection.close(); } catch (SQLException e) {}
+    }
+    return files;
+}
+
     public boolean validateUser(String user, String pass) throws InvalidKeySpecException, ClassNotFoundException {
         Boolean flag = false;
         try {
@@ -468,6 +485,23 @@ public void createFileTable() throws ClassNotFoundException {
         try { if (connection != null) connection.close(); } catch (SQLException e) {}
     }
 }
+    
+    
+    public boolean deleteFileFromDB(String filename) throws ClassNotFoundException {
+        String sql = "DELETE FROM Files WHERE filename = ?";
+        try {
+            Class.forName("org.sqlite.JDBC");
+            connection = DriverManager.getConnection(fileName);
+            PreparedStatement pstmt = connection.prepareStatement(sql);
+            pstmt.setString(1, filename);
+            return pstmt.executeUpdate() > 0;
+        } catch (SQLException ex) {
+            Logger.getLogger(DB.class.getName()).log(Level.SEVERE, null, ex);
+            return false;
+        } finally {
+            try { if (connection != null) connection.close(); } catch (SQLException e) {}
+        }
+    }
     
 }
 
