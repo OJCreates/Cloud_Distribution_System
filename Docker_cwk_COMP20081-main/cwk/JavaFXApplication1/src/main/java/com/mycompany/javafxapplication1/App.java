@@ -56,7 +56,12 @@ public class App extends Application {
     
 
     public static void main(String[] args) {
-        launch();
-    }
+    DB db = new DB();
+    db.registerUser("admin", "p@ssword123", "ADMIN"); 
+    
+    launch(); 
+}
+    
+    
 
 }

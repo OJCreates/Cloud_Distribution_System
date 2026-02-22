@@ -8,6 +8,7 @@
 <?import javafx.scene.control.TextField?>
 <?import javafx.scene.layout.ColumnConstraints?>
 <?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.RowConstraints?>
 <?import javafx.scene.layout.VBox?>
 
@@ -37,23 +38,32 @@
           <TableColumn prefWidth="75.0" text="C2" />
         </columns>
       </TableView>
-      <GridPane>
+        <Button fx:id="secondaryButton" onAction="#switchToPrimary" prefHeight="26.0" prefWidth="115.0" text="Return to Login" />
+      <GridPane prefHeight="28.0" prefWidth="937.0">
         <columnConstraints>
           <ColumnConstraints hgrow="SOMETIMES" minWidth="10.0" prefWidth="100.0" />
           <ColumnConstraints hgrow="SOMETIMES" minWidth="10.0" prefWidth="100.0" />
         </columnConstraints>
         <rowConstraints>
-          <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="SOMETIMES" />
+          <RowConstraints />
+            <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="SOMETIMES" />
         </rowConstraints>
          <children>
-              <Button fx:id="secondaryButton" onAction="#switchToPrimary" prefHeight="26.0" prefWidth="121.0" text="Return to Login" GridPane.columnIndex="1" />
             <Button fx:id="refreshBtn" mnemonicParsing="false" onAction="#RefreshBtnHandler" text="Refresh" />
+            <Button fx:id="healthCheckBtn" mnemonicParsing="false" onAction="#handleHealthCheck" text="Check Container Health " GridPane.columnIndex="1" />
          </children>
       </GridPane>
+      <HBox prefHeight="100.0" prefWidth="200.0">
+         <children>
+            <Button fx:id="createFileBtn" mnemonicParsing="false" onAction="#handleCreateFile" text="Create New File" />
+            <Button fx:id="updateFileBtn" mnemonicParsing="false" onAction="#handleUpdateFile" text="Update File" />
+            <Button fx:id="shareFileBtn" mnemonicParsing="false" onAction="#handleShareFile" text="Share File" />
+            <Button fx:id="readFileBtn" mnemonicParsing="false" onAction="#handleReadFile" text="Read File" />
+            <Button fx:id="deleteFileBtn" mnemonicParsing="false" onAction="#handleDeleteFile" text="Delete File" />
+         </children>
+      </HBox>
       <Button fx:id="delBtn" mnemonicParsing="false" onAction="#delAction" text="Delete" />
-      <Button fx:id="createFileBtn" mnemonicParsing="false" onAction="#handleCreateFile" text="Crrate New File" />
-      <Button fx:id="updateFileBtn" mnemonicParsing="false" onAction="#handleUpdateFile" text="Update File" />
-      <Button fx:id="deleteFileBtn" mnemonicParsing="false" onAction="#handleDeleteFile" text="Delete File" />
+      <HBox prefHeight="100.0" prefWidth="200.0" />
     </children>
     <padding>
         <Insets bottom="20.0" left="20.0" right="20.0" top="20.0" />

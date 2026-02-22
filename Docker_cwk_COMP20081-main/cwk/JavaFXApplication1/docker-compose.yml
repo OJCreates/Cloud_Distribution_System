@@ -1,0 +1,72 @@
+version: '3'
+
+services:
+  ntu-vm-comp20081:
+    container_name: ntu-vm-comp20081
+    image: pedrombmachado/ntu_lubuntu:comp20081
+    ports:
+      - "3390:3389"
+      - "2022:22"
+    hostname: ntu-vm-comp20081
+    volumes:
+      - docker_comp20081:/home/ntu-user/NetBeansProjects
+    networks:
+      - comp20081_network
+
+  comp20081-files-container1:
+    container_name: comp20081-files-container1
+    image: pedrombmachado/simple-ssh-container:base
+    ports:
+      - "4848:22"
+    networks:
+      - comp20081_network
+
+  load-balancer:
+    container_name: load-balancer
+    image: pedrombmachado/ntu_lubuntu:comp20081
+    ports:
+      - "2023:22"
+      - "1234:1234"
+    networks:
+      - comp20081_network
+
+  comp20081-files-container2:
+    container_name: comp20081-files-container2
+    image: pedrombmachado/simple-ssh-container:base
+    ports:
+      - "4849:22"
+    networks:
+      - comp20081_network
+
+  file-partitioning:
+    container_name: file-partitioning
+    image: pedrombmachado/ntu_lubuntu:comp20081
+    privileged: true
+    ports:
+      - "2024:22"
+    networks:
+      - comp20081_network
+
+  lamp-server:
+    container_name: lamp-server
+    image: mattrayner/lamp:latest-1804 
+    ports:
+      - "8080:80"
+      - "3306:3306"
+    networks:
+      - comp20081_network
+
+  host-manager:
+    container_name: host-manager
+    image: pedrombmachado/ntu_lubuntu:comp20081
+    ports:
+      - "2025:22"
+    networks:
+      - comp20081_network
+
+networks:
+  comp20081_network:
+    driver: bridge
+
+volumes:
+  docker_comp20081:

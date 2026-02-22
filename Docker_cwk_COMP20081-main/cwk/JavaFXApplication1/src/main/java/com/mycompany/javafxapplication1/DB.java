@@ -13,7 +13,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.PreparedStatement;
-
 import java.util.Base64;
 import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
@@ -30,6 +29,11 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.Cipher;
+import javax.crypto.spec.SecretKeySpec;
+import java.util.concurrent.ConcurrentHashMap;
+
+
 
 /**
  *
@@ -46,6 +50,33 @@ public class DB {
     private int iterations = 10000;
     private int keylength = 256;
     private String saltValue;
+    private static final String KEY = "aesEncryptionKey"; 
+
+
+public String encrypt(String strToEncrypt) {
+    try {
+        SecretKeySpec secretKey = new SecretKeySpec(KEY.getBytes(), "AES");
+        Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey);
+        return Base64.getEncoder().encodeToString(cipher.doFinal(strToEncrypt.getBytes("UTF-8")));
+    } catch (Exception e) {
+        System.out.println("Error while encrypting: " + e.toString());
+    }
+    return null;
+}
+
+
+public String decrypt(String strToDecrypt) {
+    try {
+        SecretKeySpec secretKey = new SecretKeySpec(KEY.getBytes(), "AES");
+        Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
+        cipher.init(Cipher.DECRYPT_MODE, secretKey);
+        return new String(cipher.doFinal(Base64.getDecoder().decode(strToDecrypt)));
+    } catch (Exception e) {
+        System.out.println("Error while decrypting: " + e.toString());
+    }
+    return null;
+}
     
     /**
      * @brief constructor - generates the salt if it doesn't exists or load it from the file .salt
@@ -68,6 +99,38 @@ public class DB {
             e.printStackTrace();
         }
     }
+    
+    private static final ConcurrentHashMap<String, Boolean> fileLocks = new ConcurrentHashMap<>();
+
+    public boolean lockFile(String filePath) {
+        return fileLocks.putIfAbsent(filePath, true) == null;
+    }
+
+    public void unlockFile(String filePath) {
+        fileLocks.remove(filePath);
+    }
+    
+    private static int currentServer = 1; 
+
+    public String getNextStorageContainer() {
+    int attempts = 0;
+    
+    while (attempts < 3) {
+        String folderName = "storage_" + currentServer;
+        
+        if (isContainerHealthy(folderName)) {
+            currentServer = (currentServer % 3) + 1; 
+            return folderName + "/";
+        } else {
+            System.out.println("Health Check Failed for: " + folderName + ". Skipping...");
+            currentServer = (currentServer % 3) + 1;
+            attempts++;
+        }
+    }
+    
+    new File("storage_1").mkdir();
+    return "storage_1/";
+}
         
     /**
      * @brief create a new table
@@ -165,10 +228,7 @@ public class DB {
     }
 }
 
-    /**
-     * @brief get data from the Database method
-     * @retunr results as ResultSet
-     */
+   
     public ObservableList<User> getDataFromTable() throws ClassNotFoundException {
         ObservableList<User> result = FXCollections.observableArrayList();
         try {
@@ -198,19 +258,28 @@ public class DB {
     }
 
 
-public ObservableList<FileMetadata> getFilesForUser(String owner) throws ClassNotFoundException {
+
+public ObservableList<FileMetadata> getFilesForUser(String user) throws ClassNotFoundException {
     ObservableList<FileMetadata> files = FXCollections.observableArrayList();
-    String sql = "SELECT filename, path FROM Files WHERE owner = ?";
+    String sql = "SELECT filename, path, owner FROM Files WHERE owner = ? " +
+                 "UNION " +
+                 "SELECT f.filename, f.path, f.owner FROM Files f " +
+                 "JOIN Permissions p ON f.filename = p.filename WHERE p.user = ?";
     
     try {
         Class.forName("org.sqlite.JDBC");
         connection = DriverManager.getConnection(fileName);
         var pstmt = connection.prepareStatement(sql);
-        pstmt.setString(1, owner);
+        pstmt.setString(1, user);
+        pstmt.setString(2, user);
         ResultSet rs = pstmt.executeQuery();
         
         while (rs.next()) {
-            files.add(new FileMetadata(rs.getString("filename"), rs.getString("path")));
+            files.add(new FileMetadata(
+                rs.getString("filename"), 
+                rs.getString("path"), 
+                rs.getString("owner")
+            ));
         }
     } catch (SQLException ex) {
         Logger.getLogger(DB.class.getName()).log(Level.SEVERE, null, ex);
@@ -503,6 +572,121 @@ public void createFileTable() throws ClassNotFoundException {
         }
     }
     
+    
+    public void createPermissionsTable() throws ClassNotFoundException {
+        String sql = "CREATE TABLE IF NOT EXISTS Permissions (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                    "filename TEXT NOT NULL, " +
+                    "user TEXT NOT NULL, " +
+                    "permission TEXT NOT NULL, " + 
+                    "FOREIGN KEY(filename) REFERENCES Files(filename), " +
+                    "FOREIGN KEY(user) REFERENCES Users(name))";
+        try {
+            Class.forName("org.sqlite.JDBC");
+            connection = DriverManager.getConnection(fileName);
+            var statement = connection.createStatement();
+            statement.executeUpdate(sql);
+        } catch (SQLException ex) {
+            Logger.getLogger(DB.class.getName()).log(Level.SEVERE, null, ex);
+        } finally {
+            try { if (connection != null) connection.close(); } catch (SQLException e) {}
+        }
+    }
+
+
+    public void grantPermission(String filename, String user, String permission) throws ClassNotFoundException {
+        String sql = "INSERT OR REPLACE INTO Permissions (filename, user, permission) VALUES (?, ?, ?)";
+        try {
+            Class.forName("org.sqlite.JDBC");
+            connection = DriverManager.getConnection(fileName);
+            var pstmt = connection.prepareStatement(sql);
+            pstmt.setString(1, filename);
+            pstmt.setString(2, user);
+            pstmt.setString(3, permission.toUpperCase());
+            pstmt.executeUpdate();
+        } catch (SQLException ex) {
+            Logger.getLogger(DB.class.getName()).log(Level.SEVERE, null, ex);
+        } finally {
+            try { if (connection != null) connection.close(); } catch (SQLException e) {}
+        }
+    }
+
+
+    public boolean hasPermission(String filename, String user, String requiredPermission) throws ClassNotFoundException {
+        String sql = "SELECT permission FROM Permissions WHERE filename = ? AND user = ?";
+        try {
+            Class.forName("org.sqlite.JDBC");
+            connection = DriverManager.getConnection(fileName);
+            var pstmt = connection.prepareStatement(sql);
+            pstmt.setString(1, filename);
+            pstmt.setString(2, user);
+            ResultSet rs = pstmt.executeQuery();
+        
+            if (rs.next()) {
+                String actualPermission = rs.getString("permission");
+            
+                if (actualPermission.equals("WRITE")) return true;
+                return actualPermission.equals(requiredPermission);
+            }
+        } catch (SQLException ex) {
+            Logger.getLogger(DB.class.getName()).log(Level.SEVERE, null, ex);
+        } finally {
+            try { if (connection != null) connection.close(); } catch (SQLException e) {}
+        }
+        return false; 
+    }
+    
+    public boolean isContainerHealthy(String folderName) {
+    File folder = new File(folderName);
+    return folder.exists() && folder.isDirectory() && folder.canWrite();
+}   
+    
+
+public void simulateNetworkLatency() {
+    try {
+        Random rand = new Random();
+        int delaySeconds = rand.nextInt(10) + 5; 
+        
+        System.out.println("Simulating network latency: Delaying for " + delaySeconds + " seconds...");
+        
+        Thread.sleep(delaySeconds * 1000);
+    } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        e.printStackTrace();
+    }
+}
+
+public Connection getConnection() throws ClassNotFoundException, SQLException {
+    String dataBaseName = "comp20081_db"; 
+    String userName = "admin"; 
+    String userPassword = "VzIIgagBo66x"; 
+
+    String url = "jdbc:mysql://lamp-server:3306/" + dataBaseName + "?useSSL=false";
+
+    Class.forName("com.mysql.cj.jdbc.Driver"); 
+    
+    return DriverManager.getConnection(url, userName, userPassword);
+}
+
+    
+public void registerUser(String username, String password, String role) {
+    String insertQuery = "INSERT INTO users (username, password, role) VALUES (?, ?, ?)";
+
+    try (Connection conn = getConnection(); 
+         PreparedStatement prepareStat = conn.prepareStatement(insertQuery)) {
+        
+        prepareStat.setString(1, username);
+        prepareStat.setString(2, password); 
+        prepareStat.setString(3, role);
+
+        prepareStat.executeUpdate();
+        System.out.println("User '" + username + "' added successfully to MySQL.");
+        
+    } catch (Exception e) {
+        e.printStackTrace();
+    }
+}
+
 }
 
 

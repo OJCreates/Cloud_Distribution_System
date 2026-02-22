@@ -27,11 +27,18 @@ import java.io.File;
 import java.io.FileWriter;
 import java.util.Optional;
 import java.io.IOException;
+import javafx.scene.control.ChoiceDialog;
+import java.util.Arrays;
+import java.util.Scanner;
+import java.util.concurrent.Semaphore;
+
+
 
 
 
 public class SecondaryController {
     private User currentUser;
+    private final Semaphore trafficLimiter = new Semaphore(2); 
     
     
     @FXML
@@ -64,64 +71,246 @@ public class SecondaryController {
     @FXML
     private Button deleteFileBtn;
     
+    @FXML
+    private Button shareFileBtn;
     
     @FXML
-private void handleDeleteFile() {
-    FileMetadata selected = fileTableView.getSelectionModel().getSelectedItem();
+    private Button readFileBtn;
     
-    if (selected == null) {
-        Alert alert = new Alert(Alert.AlertType.WARNING);
-        alert.setContentText("Please select a file from the table first.");
-        alert.show();
-        return;
-    }
-
+    @FXML
+    private Button healthCheckBtn;
     
-    File file = new File(selected.getPath()); 
-    if (file.exists() && file.delete()) {
-        try {
-           
-            DB db = new DB();
-            db.deleteFileFromDB(selected.getFilename());
-            
-            
-            refreshFileTable();
-            System.out.println("Deleted file: " + selected.getFilename());
-        } catch (Exception e) {
-            e.printStackTrace();
+    @FXML
+private void handleHealthCheck() {
+    DB db = new DB();
+    StringBuilder healthReport = new StringBuilder("Storage Container Status:\n");
+    
+    for (int i = 1; i <= 3; i++) {
+        String folder = "storage_" + i;
+        if (db.isContainerHealthy(folder)) {
+            healthReport.append("Healthy").append(folder).append(": HEALTHY\n");
+        } else {
+            healthReport.append("Unhealthy").append(folder).append(": UNHEALTHY (Missing or Read-Only)\n");
         }
-    } else {
-        System.out.println("Failed to delete physical file.");
     }
-}
 
+    Alert alert = new Alert(Alert.AlertType.INFORMATION);
+    alert.setTitle("System Health Check");
+    alert.setHeaderText("Requirement 9: Health Monitoring");
+    alert.setContentText(healthReport.toString());
+    alert.show();
+}
+    
     @FXML
-private void handleUpdateFile() {
+private void handleReadFile() {
     FileMetadata selected = fileTableView.getSelectionModel().getSelectedItem();
     if (selected == null) return;
 
-    TextInputDialog dialog = new TextInputDialog();
-    dialog.setTitle("Update File");
-    dialog.setHeaderText("Updating content for: " + selected.getFilename());
-    dialog.setContentText("Enter new file content:");
-
-    Optional<String> result = dialog.showAndWait();
-    result.ifPresent(newContent -> {
+    try {
+        DB db = new DB();
         
-        try (FileWriter writer = new FileWriter(selected.getPath())) {
-            writer.write(newContent);
+        boolean isOwner = selected.getOwner().equals(currentUser.getUser());
+        boolean hasReadAccess = db.hasPermission(selected.getFilename(), currentUser.getUser(), "READ");
+
+        if (isOwner || hasReadAccess) {
+            
+            File file = new File(selected.getPath());
+            Scanner reader = new Scanner(file);
+            String encryptedContent = "";
+            if (reader.hasNextLine()) {
+                encryptedContent = reader.nextLine();
+            }
+            reader.close();
+
+            
+            String decryptedContent = db.decrypt(encryptedContent);
+
             
             Alert alert = new Alert(Alert.AlertType.INFORMATION);
-            alert.setContentText("File content updated successfully.");
+            alert.setTitle("File Content");
+            alert.setHeaderText("Content of: " + selected.getFilename());
+            alert.setContentText(decryptedContent);
             alert.show();
-        } catch (IOException e) {
-            e.printStackTrace();
+        } else {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setContentText("Access Denied: No READ permission.");
+            alert.show();
         }
+    } catch (Exception e) {
+        e.printStackTrace();
+    }
+}
+    
+    @FXML
+private void handleShareFile() {
+    FileMetadata selected = fileTableView.getSelectionModel().getSelectedItem();
+    if (selected == null) return;
+
+    
+    TextInputDialog userDialog = new TextInputDialog();
+    userDialog.setTitle("Share File");
+    userDialog.setHeaderText("Grant access to another user");
+    userDialog.setContentText("Enter username:");
+
+    Optional<String> userResult = userDialog.showAndWait();
+    
+    userResult.ifPresent(targetUser -> {
+        
+        List<String> choices = Arrays.asList("READ", "WRITE");
+        ChoiceDialog<String> permDialog = new ChoiceDialog<>("READ", choices);
+        permDialog.setTitle("Permission Level");
+        permDialog.setHeaderText("Select access level for " + targetUser);
+        permDialog.setContentText("Permission:");
+
+        Optional<String> permResult = permDialog.showAndWait();
+        
+        permResult.ifPresent(permission -> {
+            try {
+                DB db = new DB();
+                db.grantPermission(selected.getFilename(), targetUser, permission);
+                System.out.println("Granted " + permission + " to " + targetUser);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
     });
+}
+    
+  @FXML
+private void handleDeleteFile() {
+    FileMetadata selected = fileTableView.getSelectionModel().getSelectedItem();
+    if (selected == null) return;
+
+    try {
+        DB db = new DB();
+        String filePath = selected.getPath();
+
+        boolean isOwner = selected.getOwner().equals(currentUser.getUser());
+        
+        if (!isOwner) {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setContentText("Access Denied: Only the file owner can delete this file.");
+            alert.show();
+            return; 
+        }
+
+        if (!db.lockFile(filePath)) {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setContentText("Conflict Detected: This file is currently in use and cannot be deleted.");
+            alert.show();
+            return;
+        }
+
+        try {
+            File file = new File(filePath);
+            if (file.exists() && file.delete()) {
+                db.deleteFileFromDB(selected.getFilename());
+                
+                refreshFileTable();
+                
+                Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                alert.setContentText("File deleted successfully from " + filePath);
+                alert.show();
+            } else {
+                Alert alert = new Alert(Alert.AlertType.ERROR);
+                alert.setContentText("Error: Physical file could not be deleted.");
+                alert.show();
+            }
+        } finally {
+            db.unlockFile(filePath); 
+        }
+
+    } catch (Exception e) {
+        e.printStackTrace();
+    }
+}
+
+@FXML
+private void handleUpdateFile() {
+    if (!trafficLimiter.tryAcquire()) {
+        Alert alert = new Alert(Alert.AlertType.WARNING);
+        alert.setTitle("Traffic Management");
+        alert.setHeaderText("System Busy");
+        alert.setContentText("The server is currently processing other updates. Please try again in a few seconds.");
+        alert.show();
+        return; 
+    }
+
+    FileMetadata selected = fileTableView.getSelectionModel().getSelectedItem();
+    
+    if (selected == null) {
+        trafficLimiter.release();
+        return;
+    }
+    
+    try {
+        DB db = new DB();
+        String filePath = selected.getPath();
+
+        boolean isOwner = selected.getOwner().equals(currentUser.getUser());
+        boolean hasWriteAccess = db.hasPermission(selected.getFilename(), currentUser.getUser(), "WRITE");
+        
+        if (!isOwner && !hasWriteAccess) {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setContentText("Access Denied: You do not have WRITE permission.");
+            alert.show();
+            trafficLimiter.release(); 
+            return; 
+        }
+
+        if (!db.lockFile(filePath)) {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setContentText("Conflict Detected: This file is currently being accessed by another process.");
+            alert.show();
+            trafficLimiter.release();
+            return;
+        }
+
+        try {
+            TextInputDialog dialog = new TextInputDialog();
+            dialog.setTitle("Update File");
+            dialog.setHeaderText("Updating content for: " + selected.getFilename());
+            dialog.setContentText("Enter new file content:");
+
+            Optional<String> result = dialog.showAndWait();
+            
+            if (result.isPresent()) {
+                String newContent = result.get();
+                
+                String encryptedContent = db.encrypt(newContent); 
+                
+                try (FileWriter writer = new FileWriter(filePath)) {
+                    writer.write(encryptedContent);
+                    
+                    Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                    alert.setContentText("File content updated, encrypted, and locked successfully.");
+                    alert.show();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        } finally {
+            db.unlockFile(filePath); 
+        }
+
+    } catch (Exception e) {
+        e.printStackTrace();
+    } finally {
+        trafficLimiter.release(); 
+    }
 }
     
     @FXML
 private void handleCreateFile() {
+    
+    if (!trafficLimiter.tryAcquire()) {
+        Alert alert = new Alert(Alert.AlertType.WARNING);
+        alert.setTitle("Traffic Management");
+        alert.setHeaderText("System Busy");
+        alert.setContentText("The server is currently handling too many requests. Please try again shortly.");
+        alert.show();
+        return;
+    }
 
     TextInputDialog dialog = new TextInputDialog("myFile.txt");
     dialog.setTitle("Create New File");
@@ -132,16 +321,20 @@ private void handleCreateFile() {
     
     result.ifPresent(fileName -> {
         try {
+            DB db = new DB();
             
-            File file = new File(fileName);
+            String targetFolder = db.getNextStorageContainer();
+            File file = new File(targetFolder + fileName);
+            
+            
             if (file.createNewFile()) {
-               
-                FileWriter writer = new FileWriter(file);
-                writer.write("Default content for " + fileName);
-                writer.close();
-
-
-                DB db = new DB();
+                String originalContent = "Default content for " + fileName;
+                String encryptedContent = db.encrypt(originalContent);
+                
+                try (FileWriter writer = new FileWriter(file)) {
+                    writer.write(encryptedContent);
+                }
+                
                
                 db.addFileToDB(fileName, currentUser.getUser(), file.getAbsolutePath());
                 refreshFileTable();
@@ -153,8 +346,14 @@ private void handleCreateFile() {
             }
         } catch (Exception e) {
             e.printStackTrace();
+        } finally {
+            trafficLimiter.release();
         }
     });
+    
+    if (!result.isPresent()) {
+        trafficLimiter.release();
+    }
 }
 
     private void refreshTable() throws ClassNotFoundException {
@@ -252,49 +451,45 @@ private void handleCreateFile() {
     }
 
     public void initialise(User loggedIn) {
-        this.currentUser = loggedIn;
-        userTextField.setText(loggedIn.getUser() + " (" + loggedIn.getRole() + ")");
-        
-      
-            
-        TableColumn <User, String> userCol = new TableColumn<>("User");
-        userCol.setCellValueFactory(
-        new PropertyValueFactory<>("user"));
-        
-        TableColumn<User, String> roleCol = new TableColumn<>("Role");
-        roleCol.setCellValueFactory(new PropertyValueFactory<>("role"));
+    this.currentUser = loggedIn;
+    userTextField.setText(loggedIn.getUser() + " (" + loggedIn.getRole() + ")");
 
-        TableColumn<User, String> passCol = new TableColumn("Pass");
-        passCol.setCellValueFactory(
-            new PropertyValueFactory<>("pass"));
-        
-        dataTableView.getColumns().clear();
-        
-        dataTableView.getColumns().addAll(userCol, roleCol, passCol);
-        
-        boolean isAdmin = "ADMIN".equalsIgnoreCase(loggedIn.getRole());
-        delBtn.setDisable(!isAdmin);
-        
-        
-        
-        try {
-            refreshTable();
-        } catch (ClassNotFoundException ex) {
-            Logger.getLogger(SecondaryController.class.getName()).log(Level.SEVERE, null, ex);
-        }
-        
-        TableColumn<FileMetadata, String> fileNameCol = new TableColumn<>("File Name");
+    
+    TableColumn<User, String> userCol = new TableColumn<>("User");
+    userCol.setCellValueFactory(new PropertyValueFactory<>("user"));
+    TableColumn<User, String> roleCol = new TableColumn<>("Role");
+    roleCol.setCellValueFactory(new PropertyValueFactory<>("role"));
+    TableColumn<User, String> passCol = new TableColumn<>("Pass");
+    passCol.setCellValueFactory(new PropertyValueFactory<>("pass"));
+
+    dataTableView.getColumns().clear();
+    dataTableView.getColumns().addAll(userCol, roleCol, passCol);
+
+    
+    TableColumn<FileMetadata, String> fileNameCol = new TableColumn<>("File Name");
     fileNameCol.setCellValueFactory(new PropertyValueFactory<>("filename"));
 
     TableColumn<FileMetadata, String> filePathCol = new TableColumn<>("Full Path");
     filePathCol.setCellValueFactory(new PropertyValueFactory<>("path"));
+    
+    
+    TableColumn<FileMetadata, String> ownerCol = new TableColumn<>("Owner");
+    ownerCol.setCellValueFactory(new PropertyValueFactory<>("owner"));
 
     fileTableView.getColumns().clear();
-    fileTableView.getColumns().addAll(fileNameCol, filePathCol);
-    
-    refreshFileTable();
-    
+    fileTableView.getColumns().addAll(fileNameCol, filePathCol, ownerCol);
+
+   
+    try {
+        DB db = new DB();
+        db.createFileTable();        
+        db.createPermissionsTable();
+        refreshTable();
+        refreshFileTable();
+    } catch (ClassNotFoundException ex) {
+        Logger.getLogger(SecondaryController.class.getName()).log(Level.SEVERE, null, ex);
     }
+}
     
     private void refreshFileTable() {
         try {
