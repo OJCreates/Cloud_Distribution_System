@@ -31,6 +31,10 @@ import javafx.scene.control.ChoiceDialog;
 import java.util.Arrays;
 import java.util.Scanner;
 import java.util.concurrent.Semaphore;
+import javafx.scene.control.TextArea;
+import java.io.OutputStream;
+import java.io.PrintStream;
+import javafx.application.Platform;
 
 
 
@@ -40,6 +44,14 @@ public class SecondaryController {
     private User currentUser;
     private final Semaphore trafficLimiter = new Semaphore(2); 
     
+    @FXML
+    private TextArea terminalArea;
+    
+    @FXML
+    private TextField terminalInput;
+    
+    @FXML
+    private TerminalService terminalService;
     
     @FXML
     private TextField userTextField;
@@ -452,6 +464,28 @@ private void handleCreateFile() {
 
     public void initialise(User loggedIn) {
     this.currentUser = loggedIn;
+    this.terminalService = new TerminalService(loggedIn.getUser());
+        if (terminalArea != null) {
+            terminalArea.setText("Terminal ready. Type a command and press Enter.\n");
+        }
+        
+        OutputStream out = new OutputStream() {
+                @Override
+                public void write(int b) {
+                    Platform.runLater(() -> terminalArea.appendText(String.valueOf((char) b)));
+                }
+
+                @Override
+                public void write(byte[] b, int off, int len) {
+                    String text = new String(b, off, len);
+                    Platform.runLater(() -> terminalArea.appendText(text));
+                }
+            };
+
+            System.setOut(new PrintStream(out, true));
+            System.setErr(new PrintStream(out, true));
+
+        
     userTextField.setText(loggedIn.getUser() + " (" + loggedIn.getRole() + ")");
 
     
@@ -503,5 +537,19 @@ private void handleCreateFile() {
         }
     }
     
+    @FXML
+    private void handleTerminalCommand(ActionEvent event) {
+        String command = terminalInput.getText();
+        if (command.trim().isEmpty()) return;
+        
+        terminalArea.appendText(terminalService.executeCommand("pwd") + " $ " + command + "\n");
+        String result = terminalService.executeCommand(command);
+        
+        if (!result.isEmpty()) {
+            terminalArea.appendText(result + (result.endsWith("\n") ? "" : "\n"));
+        }
+        
+        terminalInput.clear();
+    }
     
 }
